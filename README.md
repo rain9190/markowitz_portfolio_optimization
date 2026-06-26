@@ -1,18 +1,68 @@
-# markowitz_portfolio_optimization
-The objective of this project is to construct a diversified portfolio comprising 11 assets and demonstrate how diversification reduces overall portfolio volatility. The analysis further aims to determine the optimal asset weights that yield the minimum volatility portfolio and the maximum Sharpe ratio portfolio. 
-The portfolio contains 11 assets from multiple classes to better capture and diversify the movements of the market. The assets include stocks, bonds-ETF, REIT-ETF, commoddities and cryptos. 
+# Markowitz Portfolio Optimization with ML-Driven Expected Returns
 
-The assets are divided into three categories based on their volatility and behavior. Cryptocurrencies, being highly volatile and exhibiting nonlinear patterns, are modeled using a Random Forest Regressor to better capture complex relationships. Equities, REITs, and commodities are relatively more stable and follow linear trends, so a Linear Regression model is used for their return prediction. Bonds display low volatility and consistent returns; therefore, their expected returns are estimated using the simple average of historical returns rather than a machine learning model.
+Constructing a diversified 11-asset portfolio that maximizes the Sharpe ratio, using machine-learning-based return forecasts as inputs to Markowitz optimization, validated against the S&P 500.
 
-Features for both the Linear Regression and Random Forest Regressor models are created using time series data to predict the expected returns and covariance based on 7 years worth of historical data, where each feature set consists of the past 20 daily returns to predict the next (nth) return. A lag of 20 is chosen to capture short-term momentum and mean-reversion behavior in asset returns. The daily return is converted to annual return by compounding over 252 trading days.
+## Overview
 
-After estimating the expected returns and covariance matrix for all assets, a Monte Carlo simulation is conducted to generate a large number of random portfolios. This allows plotting of the Expected Return vs. Standard Deviation curve, representing the Markowitz Efficient Frontier.
-Two distinct optimal portfolios are identified from the simulation: the Minimum Variance Portfolio and the Maximum Sharpe Ratio Portfolio :
+The objective of this project is to build a portfolio across five asset classes - equities, bond ETFs, REIT ETFs, commodities, and cryptocurrencies, and show that diversification in the portfolio reduces overall risk. The key tweak is that rather than using historical means as the expected returns, the project uses machine learning models tailored to each asset class to generate forward-looking return forecasts.
 
-1) The Minimum Variance Portfolio achieves an expected annual return of 8.02% with a standard deviation of 5.35%, resulting in a Sharpe ratio of 0.74.
+The pipeline has three stages:
 
-2) The Maximum Sharpe Ratio Portfolio, on the other hand, delivers a higher expected annual return of 21.37% with a standard deviation of 15.29%, yielding a Sharpe ratio of 1.13.
+1. **Forward-looking expected returns** are generated per asset using machine learning, rather than a naive historical mean.
+2. **Portfolio weights** are optimized to maximize the Sharpe ratio under realistic constraints, using an exact quadratic programming solver, with a Monte Carlo simulation as an independent cross-check.
+3. **Out-of-sample backtesting** measures realized performance on unseen 2025 data against an equal-weight benchmark and the S&P 500.
 
-where the risk free rate is taken to be 4.02%. These results highlight the trade-off between risk and return in portfolio optimization. While the minimum variance portfolio prioritizes stability and lower volatility, the maximum Sharpe ratio portfolio optimizes the risk-adjusted return, making it more suitable for investors with higher risk tolerance.
+## Key Results (Out-of-Sample, Jan–Oct 2025)
 
-After calculating the two optimal portfolios, backtesting was conducted over the subsequent nine-month period using historical market data to evaluate their real-world performance. The Minimum Volatility Portfolio achieved an annualized return of 20.47%, while the Maximum Sharpe Ratio Portfolio achieved an annualized return of 27.17%. These results validate the robustness of the portfolio construction approach, demonstrating that both the optimized portfolios outperformed the average market performance, with the Maximum Sharpe Ratio Portfolio providing superior risk-adjusted returns in the test period.
+| Strategy | Ann. Return | Ann. Volatility | Sharpe | Max Drawdown |
+|---|---|---|---|---|
+| **Max Sharpe** | 19.25% | 10.87% | **1.40** | -5.6% |
+| **Min Volatility** | 11.74% | 5.38% | **1.43** | -1.7% |
+| Equal Weight (1/N) | 16.60% | 16.30% | 0.77 | -11.2% |
+| S&P 500 (SPY) | 14.58% | 21.58% | 0.49 | -17.2% |
+
+- The **Maximum Sharpe portfolio beat the S&P 500 on every metric**. Higher returns, roughly half the volatility, nearly 3x the Sharpe ratio, and a far shallower drawdown.
+- The optimized portfolio **outperformed the naive equal-weight benchmark**, confirming the optimization added value beyond simple diversification.
+- The model's **forecast was well-calibrated** as the Max Sharpe portfolio's expected annualized return (18.17%) closely matched its realized return (19.25%) on data the models never saw.
+
+## Methodology
+
+### 1. Expected Returns via Machine Learning
+
+Assets are modeled by category according to their volatility and behavior:
+
+| Category | Assets | Model | Rationale |
+|---|---|---|---|
+| Cryptocurrencies | BTC, ETH | Random Forest Regressor | Captures nonlinear, high-volatility patterns |
+| Equities / REITs / Commodities | SPY, QQQ, IWM, VNQ, GLD, USO | Linear Regression | Captures relatively stable, linear trends |
+| Bonds | LQD, IEF, HYG | Historical Mean | Low, consistent returns; ML doesn't add anything |
+
+Each model uses the past 20 daily returns as features to predict a **5-day smoothed forward return** (averaging the next 5 days denoises the the very-hard-to-predict single-day return). Data is split chronologically (no shuffling) into 80% train / 20% test to prevent look-ahead leakage. The model's directional signal is then used to tilt a stable historical-mean anchor, producing forward-looking expected returns.
+
+### 2. Portfolio Optimization
+
+The optimal weights are found by **exact quadratic programming** (SLSQP), maximizing the Sharpe ratio subject to:
+
+- **Long-only:** no short selling (weights ≥ 0)
+- **Concentration cap:** no asset exceeds 30% of the portfolio (enforces diversification)
+- **Fully invested:** weights sum to 1
+
+A **Monte Carlo simulation** of 10,000 random portfolios (Dirichlet-sampled under the same 30% cap) maps the feasible region. The best portfolio found by the simulation is plotted, along with the Capital Market Line through its tangency point, and is then validated against the exact solver — confirming the random search and the exact optimum converge.
+
+### 3. Backtesting
+
+Models are trained on 2018–2025 data and the resulting portfolio is backtested on **out-of-sample** data (Jan–Oct 2025), reporting annualized return, volatility, Sharpe ratio, and maximum drawdown against an equal-weight portfolio and the S&P 500.
+
+## Tech Stack
+
+Python · NumPy · pandas · scikit-learn · SciPy · yfinance · Matplotlib
+
+## Repository
+
+```
+├── MPT.ipynb        # full analysis notebook
+└── README.md
+```
+
+Run the notebook top to bottom; it downloads all data via `yfinance`.
+
