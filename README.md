@@ -66,3 +66,7 @@ Python · NumPy · pandas · scikit-learn · SciPy · yfinance · Matplotlib
 
 Run the notebook top to bottom; it downloads all data via `yfinance`.
 
+## License
+
+This project is licensed under the MIT License — see the LICENSE file for details.
+
